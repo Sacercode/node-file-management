@@ -181,15 +181,13 @@ class ServerFolder extends Folder {
             for (let index = 0; index < folderFiles.length; index++) {
                 const file = folderFiles[index];
                 
-                if (file.content) {
-                    const fileStringContent = file.content.toString();
-        
-                    if (fileStringContent.match(regex)) {
-                        if (returnsFirstOnly) {
-                            return file;
-                        }
-                        foundFiles.push(file);
+                const fileStringContent = file.getContent().toString();
+    
+                if (fileStringContent.match(regex)) {
+                    if (returnsFirstOnly) {
+                        return file;
                     }
+                    foundFiles.push(file);
                 }
             }
             return foundFiles;
@@ -237,37 +235,48 @@ class ServerFolder extends Folder {
                 files.forEach((file) => {
                     const filePath = path.join(folderPath, file);
     
-                    fs.stat(filePath, (err, stats) => {
-                        if (err) {
-                            return reject(err);
-                        }
-    
-                        if (stats.isDirectory()) {
-                            // Recurse into subdirectory
-                            this.getStats(filePath)
-                                .then((subDirDetails) => {
-                                    totalSize += subDirDetails.size_in_bytes;
-                                    oldestDate = subDirDetails.oldest_modification_date < oldestDate || new Date() ? subDirDetails.oldest_modification_date : oldestDate;
-                                    newestDate = subDirDetails.last_modification_date > newestDate ? subDirDetails.last_modification_date : newestDate;
-    
-                                    if (--pending === 0) {
-                                        resolve({ size_in_bytes: totalSize, oldest_modification_date: oldestDate, last_modification_date: newestDate });
-                                    }
-                                })
-                                .catch(reject);
-                        } else {
-                            // Update total size and modification dates
-                            
-                            totalSize += stats.size;
-                            oldestDate = stats.mtime < oldestDate ? stats.mtime : oldestDate;
-                            newestDate = stats.mtime > newestDate ? stats.mtime : newestDate;
-    
-                            if (--pending === 0) {
-                                resolve({ size_in_bytes: totalSize, oldest_modification_date: oldestDate, last_modification_date: newestDate });
+                    fs.lstat(
+                        filePath, (err, lstats) => {
+                            if (err) {
+                                return reject(err);
                             }
-                        }
-                    });
-                });
+
+                            if (lstats.isSymbolicLink()) {
+                                // For symbolic links, use the link's own size and dates without following it
+                                totalSize += lstats.size;
+                                oldestDate = lstats.mtime < oldestDate ? lstats.mtime : oldestDate;
+                                newestDate = lstats.mtime > newestDate ? lstats.mtime : newestDate;
+
+                                if (--pending === 0) {
+                                    resolve({ size_in_bytes: totalSize, oldest_modification_date: oldestDate, last_modification_date: newestDate });
+                                }
+                            } else if (lstats.isDirectory()) {
+                                // Recurse into subdirectory
+                                this.getStats(filePath)
+                                    .then((subDirDetails) => {
+                                        totalSize += subDirDetails.size_in_bytes;
+                                        oldestDate = subDirDetails.oldest_modification_date < oldestDate || new Date() ? subDirDetails.oldest_modification_date : oldestDate;
+                                        newestDate = subDirDetails.last_modification_date > newestDate ? subDirDetails.last_modification_date : newestDate;
+        
+                                        if (--pending === 0) {
+                                            resolve({ size_in_bytes: totalSize, oldest_modification_date: oldestDate, last_modification_date: newestDate });
+                                        }
+                                    })
+                                    .catch(reject);
+                            } else {
+                                // Update total size and modification dates
+                                
+                                totalSize += lstats.size;
+                                oldestDate = lstats.mtime < oldestDate ? lstats.mtime : oldestDate;
+                                newestDate = lstats.mtime > newestDate ? lstats.mtime : newestDate;
+        
+                                if (--pending === 0) {
+                                    resolve({ size_in_bytes: totalSize, oldest_modification_date: oldestDate, last_modification_date: newestDate });
+                                }
+                            }
+                        });
+                    }
+                );
             });
         })
     }
