@@ -1,5 +1,5 @@
 {
-  "name": "@editide/file-management",
+  "name": "@sacercode/file-management",
   "version": "1.0.17",
   "description": "Object oriented JavaScript files management helpers",
   "main": "src/index.js",
