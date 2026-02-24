@@ -1,6 +1,6 @@
 {
   "name": "@sacercode/file-management",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Object oriented JavaScript files management helpers",
   "main": "src/index.js",
   "exports": {
